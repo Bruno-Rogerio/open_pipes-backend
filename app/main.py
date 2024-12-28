@@ -13,12 +13,17 @@ try:
 
     # Configuração CORS
     app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["http://localhost:3000", "https://open-pipes-backend.onrender.com"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000", 
+        "https://open-pipes-backend.onrender.com",
+        "https://openpipes.netlify.app"
+    ],
+    
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
     @app.on_event("startup")
     async def startup_db_client():
