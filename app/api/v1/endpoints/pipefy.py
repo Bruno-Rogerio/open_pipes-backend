@@ -376,37 +376,19 @@ async def save_template(
         "pipe_id": template_data["pipe_id"],
         "phase_id": template_data["phase_id"],
         "fields": template_data["fields"],
-        "user_id": str(current_user.id)
+        "user_id": str(current_user.id),
+        "selected_user": template_data.get("selected_user", "")  # Adiciona o ID do usuário selecionado
     }
     result = await MongoDB.database.templates.insert_one(template)
     return {"id": str(result.inserted_id), "message": "Template saved successfully"}
 
 @router.get("/templates")
 async def get_templates(current_user: User = Depends(get_current_user)):
-    logger.info(f"Buscando templates para o usuário: {current_user.id}")
-    
-    try:
-        templates = await MongoDB.database.templates.find({"user_id": str(current_user.id)}).to_list(None)
-        logger.info(f"Templates encontrados: {len(templates)}")
-        
-        result = [
-            {
-                "id": str(template["_id"]),
-                "name": template.get("name", "Template sem nome"),
-                "pipe_id": template.get("pipe_id", ""),
-                "phase_id": template.get("phase_id", ""),
-                "fields": template.get("fields", [])
-            }
-            for template in templates
-        ]
-        
-        logger.info(f"Templates processados: {result}")
-        return result
-    
-    except Exception as e:
-        logger.error(f"Erro ao buscar templates: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Erro interno ao buscar templates: {str(e)}")
-
+    templates = await MongoDB.database.templates.find({"user_id": str(current_user.id)}).to_list(None)
+    return [
+        {**template, "id": str(template["_id"])} 
+        for template in templates
+    ]
 
 @router.delete("/templates/{template_id}")
 async def delete_template(
