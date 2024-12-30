@@ -22,7 +22,8 @@ try:
         allow_origins=[
             "http://localhost:3000", 
             "https://open-pipes-backend.onrender.com",
-            "https://openpipes.netlify.app"
+            "https://openpipes.netlify.app",
+            "*"
         ],
         allow_credentials=True,
         allow_methods=["*"],
