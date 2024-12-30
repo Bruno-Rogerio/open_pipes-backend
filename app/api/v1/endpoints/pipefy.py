@@ -44,7 +44,6 @@ class PipeInDB(BaseModel):
     pipeId: str
     user_id: str
 
-
 async def get_pipefy_token(current_user: User = Depends(get_current_user)):
     logger.info(f"Retrieving Pipefy token for user: {current_user.email}")
     user = await MongoDB.database.users.find_one({"email": current_user.email})
@@ -81,7 +80,7 @@ async def get_phases(pipe_id: str, current_user: User = Depends(get_current_user
         
         return {"phases": phases}
     except Exception as e:
-        logger.error(f"Error fetching pipe phases: {str(e)}")
+        logger.error(f"Error fetching pipe phases: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/get_fields")
@@ -102,6 +101,7 @@ async def get_fields(phase_id: str, current_user: User = Depends(get_current_use
         
         return {"fields": fields}
     except Exception as e:
+        logger.error(f"Error fetching fields: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/prepare_fields_selection")
@@ -158,7 +158,7 @@ async def prepare_fields_selection(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erro ao preparar seleção de campos: {str(e)}")
+        logger.error(f"Erro ao preparar seleção de campos: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.api_route("/get_pipe_members", methods=["POST", "OPTIONS"])
@@ -311,25 +311,36 @@ async def update_cards_from_xlsx(
     
 @router.post("/pipes", response_model=PipeInDB)
 async def create_pipe(pipe: PipeCreate, current_user: User = Depends(get_current_user)):
-    new_pipe = PipeInDB(
-        id=str(ObjectId()),
-        name=pipe.name,
-        pipeId=pipe.pipeId,
-        user_id=str(current_user.id)
-    )
-    await MongoDB.database.pipes.insert_one(new_pipe.dict())
-    return new_pipe
+    try:
+        new_pipe = PipeInDB(
+            id=str(ObjectId()),
+            name=pipe.name,
+            pipeId=pipe.pipeId,
+            user_id=str(current_user.id)
+        )
+        result = await MongoDB.database.pipes.insert_one(new_pipe.dict())
+        logger.info(f"Created new pipe with id: {result.inserted_id}")
+        return new_pipe
+    except Exception as e:
+        logger.error(f"Error creating pipe: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error creating pipe: {str(e)}")
 
 @router.put("/pipes/{pipe_id}", response_model=PipeInDB)
 async def update_pipe(pipe_id: str, pipe: PipeUpdate, current_user: User = Depends(get_current_user)):
-    updated_pipe = await MongoDB.database.pipes.find_one_and_update(
-        {"_id": ObjectId(pipe_id), "user_id": str(current_user.id)},
-        {"$set": pipe.dict()},
-        return_document=True
-    )
-    if not updated_pipe:
-        raise HTTPException(status_code=404, detail="Pipe not found")
-    return PipeInDB(**{k: v for k, v in updated_pipe.items() if k != '_id'}, id=str(updated_pipe["_id"]))
+    try:
+        updated_pipe = await MongoDB.database.pipes.find_one_and_update(
+            {"_id": ObjectId(pipe_id), "user_id": str(current_user.id)},
+            {"$set": pipe.dict()},
+            return_document=True
+        )
+        if not updated_pipe:
+            logger.warning(f"Pipe not found: {pipe_id}")
+            raise HTTPException(status_code=404, detail="Pipe not found")
+        logger.info(f"Updated pipe: {pipe_id}")
+        return PipeInDB(**{k: v for k, v in updated_pipe.items() if k != '_id'}, id=str(updated_pipe["_id"]))
+    except Exception as e:
+        logger.error(f"Error updating pipe: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error updating pipe: {str(e)}")
 
 @router.delete("/pipes/{pipe_id}", response_model=dict)
 async def delete_pipe(pipe_id: str, current_user: User = Depends(get_current_user)):
@@ -340,5 +351,17 @@ async def delete_pipe(pipe_id: str, current_user: User = Depends(get_current_use
 
 @router.get("/pipes", response_model=List[PipeInDB])
 async def get_pipes(current_user: User = Depends(get_current_user)):
+    logger.info(f"Fetching pipes for user: {current_user.id}")
     pipes = await MongoDB.database.pipes.find({"user_id": str(current_user.id)}).to_list(None)
-    return [PipeInDB(**{k: v for k, v in pipe.items() if k != '_id'}, id=str(pipe["_id"])) for pipe in pipes]
+    logger.info(f"Found {len(pipes)} pipes")
+    result = [
+        PipeInDB(
+            id=str(pipe["_id"]),
+            name=pipe["name"],
+            pipeId=pipe["pipeId"],
+            user_id=pipe["user_id"]
+        )
+        for pipe in pipes
+    ]
+    logger.info(f"Returning {len(result)} pipes")
+    return result
