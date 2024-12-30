@@ -386,7 +386,14 @@ async def save_template(
 async def get_templates(current_user: User = Depends(get_current_user)):
     templates = await MongoDB.database.templates.find({"user_id": str(current_user.id)}).to_list(None)
     return [
-        {**template, "id": str(template["_id"])} 
+        {
+            "id": str(template["_id"]),
+            "name": template.get("name", ""),
+            "pipe_id": template.get("pipe_id", ""),
+            "phase_id": template.get("phase_id", ""),
+            "fields": template.get("fields", []),
+            "selected_user": template.get("selected_user", "")
+        } 
         for template in templates
     ]
 
