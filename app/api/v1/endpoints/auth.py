@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.security import get_current_user, encrypt_token
 from app.models.user import User
 from app.db.mongodb import MongoDB
+from fastapi import Body
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -49,9 +50,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Any:
         "token_type": "bearer"
     }
 
-@router.post("/save_pipefy_token")
-async def save_pipefy_token(token: str, current_user: User = Depends(get_current_user)):
-    encrypted_token = encrypt_token(token)
+@router.post("/save-pipefy-token")
+async def save_pipefy_token(pipefy_token: str = Body(..., embed=True), current_user: User = Depends(get_current_user)):
+    print(f"Received token: {pipefy_token}")  # Para debugging
+    encrypted_token = encrypt_token(pipefy_token)
     result = await MongoDB.database.users.update_one(
         {"email": current_user.email},
         {"$set": {"pipefy_token": encrypted_token}}
