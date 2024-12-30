@@ -311,19 +311,19 @@ async def update_cards_from_xlsx(
     
 @router.post("/pipes", response_model=PipeInDB)
 async def create_pipe(pipe: PipeCreate, current_user: User = Depends(get_current_user)):
-    new_pipe = {
-        "name": pipe.name,
-        "pipeId": pipe.pipeId,
-        "user_id": str(current_user.id)
-    }
-    result = await MongoDB.database.pipes.insert_one(new_pipe)
-    created_pipe = await MongoDB.database.pipes.find_one({"_id": result.inserted_id})
-    return PipeInDB(id=str(created_pipe["_id"]), **created_pipe)
+    new_pipe = PipeInDB(
+        id=str(ObjectId()),
+        name=pipe.name,
+        pipeId=pipe.pipeId,
+        user_id=str(current_user.id)
+    )
+    await MongoDB.database.pipes.insert_one(new_pipe.dict())
+    return new_pipe
 
 @router.get("/pipes", response_model=List[PipeInDB])
 async def get_pipes(current_user: User = Depends(get_current_user)):
     pipes = await MongoDB.database.pipes.find({"user_id": str(current_user.id)}).to_list(None)
-    return [PipeInDB(id=str(pipe["_id"]), **pipe) for pipe in pipes]
+    return [PipeInDB(**pipe, id=str(pipe["_id"])) for pipe in pipes]
 
 @router.put("/pipes/{pipe_id}", response_model=PipeInDB)
 async def update_pipe(pipe_id: str, pipe: PipeUpdate, current_user: User = Depends(get_current_user)):
@@ -334,7 +334,7 @@ async def update_pipe(pipe_id: str, pipe: PipeUpdate, current_user: User = Depen
     )
     if not updated_pipe:
         raise HTTPException(status_code=404, detail="Pipe not found")
-    return PipeInDB(id=str(updated_pipe["_id"]), **updated_pipe)
+    return PipeInDB(**updated_pipe, id=str(updated_pipe["_id"]))
 
 @router.delete("/pipes/{pipe_id}", response_model=dict)
 async def delete_pipe(pipe_id: str, current_user: User = Depends(get_current_user)):
