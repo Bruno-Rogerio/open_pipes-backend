@@ -67,3 +67,5 @@ async def check_pipefy_token(current_user: User = Depends(get_current_user)):
     user = await MongoDB.database.users.find_one({"email": current_user.email})
     has_token = "pipefy_token" in user and user["pipefy_token"] is not None
     return {"has_token": has_token}
+
+
