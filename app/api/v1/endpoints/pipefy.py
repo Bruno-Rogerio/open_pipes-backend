@@ -14,7 +14,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.comments import Comment
 from fastapi import APIRouter, Depends, HTTPException, Header, File, Request, UploadFile, Body
 from pydantic import BaseModel
-
+from bson import ObjectId
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,6 +29,21 @@ class SelectedFieldsModel(BaseModel):
 class TemplateGenerationModel(BaseModel):
     selected_fields: List[str]
     selected_user: str 
+
+class PipeCreate(BaseModel):
+    name: str
+    pipeId: str
+
+class PipeUpdate(BaseModel):
+    name: str
+    pipeId: str
+
+class PipeInDB(BaseModel):
+    id: str
+    name: str
+    pipeId: str
+    user_id: str
+
 
 async def get_pipefy_token(current_user: User = Depends(get_current_user)):
     logger.info(f"Retrieving Pipefy token for user: {current_user.email}")
@@ -293,3 +308,37 @@ async def update_cards_from_xlsx(
     except Exception as e:
         logger.error(f"Error updating cards from XLSX: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error updating cards: {str(e)}")
+    
+@router.post("/pipes", response_model=PipeInDB)
+async def create_pipe(pipe: PipeCreate, current_user: User = Depends(get_current_user)):
+    new_pipe = {
+        "name": pipe.name,
+        "pipeId": pipe.pipeId,
+        "user_id": str(current_user.id)
+    }
+    result = await MongoDB.database.pipes.insert_one(new_pipe)
+    created_pipe = await MongoDB.database.pipes.find_one({"_id": result.inserted_id})
+    return PipeInDB(id=str(created_pipe["_id"]), **created_pipe)
+
+@router.get("/pipes", response_model=List[PipeInDB])
+async def get_pipes(current_user: User = Depends(get_current_user)):
+    pipes = await MongoDB.database.pipes.find({"user_id": str(current_user.id)}).to_list(None)
+    return [PipeInDB(id=str(pipe["_id"]), **pipe) for pipe in pipes]
+
+@router.put("/pipes/{pipe_id}", response_model=PipeInDB)
+async def update_pipe(pipe_id: str, pipe: PipeUpdate, current_user: User = Depends(get_current_user)):
+    updated_pipe = await MongoDB.database.pipes.find_one_and_update(
+        {"_id": ObjectId(pipe_id), "user_id": str(current_user.id)},
+        {"$set": pipe.dict()},
+        return_document=True
+    )
+    if not updated_pipe:
+        raise HTTPException(status_code=404, detail="Pipe not found")
+    return PipeInDB(id=str(updated_pipe["_id"]), **updated_pipe)
+
+@router.delete("/pipes/{pipe_id}", response_model=dict)
+async def delete_pipe(pipe_id: str, current_user: User = Depends(get_current_user)):
+    result = await MongoDB.database.pipes.delete_one({"_id": ObjectId(pipe_id), "user_id": str(current_user.id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Pipe not found")
+    return {"message": "Pipe deleted successfully"}
