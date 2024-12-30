@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.endpoints import auth, pipefy
 from app.core.config import settings
 from app.db.mongodb import MongoDB
-from app.api.v1.endpoints import pipes
 
 try:
     app = FastAPI(
@@ -37,8 +36,7 @@ try:
     # Rotas
     app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
     app.include_router(pipefy.router, prefix=f"{settings.API_V1_STR}/pipefy", tags=["pipefy"])
-    app.include_router(pipes.router, prefix="/api/v1", tags=["pipes"])
-
+ 
     @app.get("/")
     async def root():
         return {"message": f"Bem-vindo à API {settings.PROJECT_NAME}"}
