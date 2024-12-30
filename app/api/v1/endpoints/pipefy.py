@@ -365,3 +365,36 @@ async def get_pipes(current_user: User = Depends(get_current_user)):
     ]
     logger.info(f"Returning {len(result)} pipes")
     return result
+
+@router.post("/save-template")
+async def save_template(
+    template_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    template = {
+        "name": template_data["name"],
+        "pipe_id": template_data["pipe_id"],
+        "phase_id": template_data["phase_id"],
+        "fields": template_data["fields"],
+        "user_id": str(current_user.id)
+    }
+    result = await MongoDB.database.templates.insert_one(template)
+    return {"id": str(result.inserted_id), "message": "Template saved successfully"}
+
+@router.get("/templates")
+async def get_templates(current_user: User = Depends(get_current_user)):
+    templates = await MongoDB.database.templates.find({"user_id": str(current_user.id)}).to_list(None)
+    return [
+        {**template, "id": str(template["_id"])} 
+        for template in templates
+    ]
+
+@router.delete("/templates/{template_id}")
+async def delete_template(
+    template_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    result = await MongoDB.database.templates.delete_one({"_id": ObjectId(template_id), "user_id": str(current_user.id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"message": "Template deleted successfully"}
