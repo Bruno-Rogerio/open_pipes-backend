@@ -436,20 +436,20 @@ async def move_cards(
 
 @router.post("/mass_move_update_cards")
 async def mass_move_update_cards(
-    pipe_id: str,
-    cards_data: List[Dict[str, Any]],
+    pipe_id: str = Body(...),  # Usar Body para garantir que seja um parâmetro JSON
+    cards_data: List[Dict[str, Any]] = Body(...),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        api_token = await get_pipefy_token(current_user)
+        # Log detalhado dos dados recebidos
+        logger.info(f"Pipe ID recebido: {pipe_id}")
+        logger.info(f"Dados dos cards recebidos: {json.dumps(cards_data, indent=2)}")
         
-        # Adicionar logs detalhados
-        logger.info(f"Recebido pipe_id: {pipe_id}")
-        logger.info(f"Dados dos cards: {json.dumps(cards_data, indent=2)}")
+        api_token = await get_pipefy_token(current_user)
         
         # Recuperar mapeamento de campos do pipe
         field_map = pipefy_service.get_field_labels_and_ids(pipe_id, api_token)
-        logger.info(f"Mapeamento de campos: {field_map}")
+        logger.info(f"Mapeamento de campos: {json.dumps(field_map, indent=2)}")
         
         results = []
         
@@ -467,14 +467,19 @@ async def mass_move_update_cards(
                 field_label = field_update.get('label')
                 value = field_update.get('value')
                 
+                # Log de cada campo sendo processado
+                logger.info(f"Processando campo: Label={field_label}, Valor={value}")
+                
                 # Encontrar o ID do campo pelo label
-                field_id = field_map.get(field_label)
+                field_id = next((k for k, v in field_map.items() if v.lower() == field_label.lower()), None)
                 
                 if not field_id:
                     logger.warning(f"Campo não encontrado: {field_label}")
                     continue
                 
                 field_updates[field_id] = str(value)
+            
+            logger.info(f"Atualizações para o card {card_id}: {json.dumps(field_updates, indent=2)}")
             
             # Atualizar campos do card
             success, message = pipefy_service.update_card_fields(
