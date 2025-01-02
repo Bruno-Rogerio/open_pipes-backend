@@ -107,6 +107,10 @@ def update_card_fields(card_id: str, field_updates: Dict, api_token: str) -> Tup
         return False, f"Error updating card fields: {str(e)}"
 
 def get_pipe_fields(pipe_id: str, api_token: str) -> List[Dict]:
+    # Extrair apenas o número do pipe se for uma URL
+    if pipe_id.startswith('http'):
+        pipe_id = pipe_id.split('/')[-1]
+
     query = """
     query ($pipeId: ID!) {
       pipe(id: $pipeId) {
@@ -129,10 +133,34 @@ def get_pipe_fields(pipe_id: str, api_token: str) -> List[Dict]:
     
     try:
         data = pipefy_request(query, variables, api_token)
-        start_form_fields = data["data"]["pipe"]["start_form_fields"]
-        phase_fields = [field for phase in data["data"]["pipe"]["phases"] for field in phase["fields"]]
-        return start_form_fields + phase_fields
+        
+        # Log detalhado da resposta
+        logger.info(f"Resposta da API de campos: {json.dumps(data, indent=2)}")
+        
+        # Verificar se há erros na resposta
+        if 'errors' in data:
+            error_messages = [error.get('message', 'Unknown error') for error in data['errors']]
+            raise Exception(f"Pipefy API errors: {'; '.join(error_messages)}")
+        
+        # Verificar se o pipe existe
+        if not data.get('data', {}).get('pipe'):
+            raise Exception("Pipe não encontrado ou acesso negado")
+        
+        # Coletar campos do formulário inicial e das fases
+        start_form_fields = data['data']['pipe'].get('start_form_fields', [])
+        phase_fields = [
+            field 
+            for phase in data['data']['pipe'].get('phases', []) 
+            for field in phase.get('fields', [])
+        ]
+        
+        # Combinar campos
+        all_fields = start_form_fields + phase_fields
+        
+        return all_fields
+    
     except Exception as e:
+        logger.error(f"Erro ao buscar campos do pipe: {str(e)}", exc_info=True)
         raise Exception(f"Error fetching pipe fields: {str(e)}")
 
 def get_field_id_by_label(pipe_id: str, field_label: str, api_token: str) -> str:

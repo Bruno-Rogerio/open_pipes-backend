@@ -436,7 +436,7 @@ async def move_cards(
 
 @router.post("/mass_move_update_cards")
 async def mass_move_update_cards(
-    pipe_id: str = Body(...),  # Usar Body para garantir que seja um parâmetro JSON
+    pipe_id: str = Body(...),
     cards_data: List[Dict[str, Any]] = Body(...),
     current_user: User = Depends(get_current_user)
 ):
@@ -448,8 +448,15 @@ async def mass_move_update_cards(
         api_token = await get_pipefy_token(current_user)
         
         # Recuperar mapeamento de campos do pipe
-        field_map = pipefy_service.get_field_labels_and_ids(pipe_id, api_token)
-        logger.info(f"Mapeamento de campos: {json.dumps(field_map, indent=2)}")
+        try:
+            field_map = {
+                field['label']: field['id'] 
+                for field in pipefy_service.get_pipe_fields(pipe_id, api_token)
+            }
+            logger.info(f"Mapeamento de campos: {json.dumps(field_map, indent=2)}")
+        except Exception as field_error:
+            logger.error(f"Erro ao recuperar campos: {str(field_error)}")
+            raise HTTPException(status_code=400, detail=f"Erro ao recuperar campos: {str(field_error)}")
         
         results = []
         
@@ -471,7 +478,7 @@ async def mass_move_update_cards(
                 logger.info(f"Processando campo: Label={field_label}, Valor={value}")
                 
                 # Encontrar o ID do campo pelo label
-                field_id = next((k for k, v in field_map.items() if v.lower() == field_label.lower()), None)
+                field_id = field_map.get(field_label)
                 
                 if not field_id:
                     logger.warning(f"Campo não encontrado: {field_label}")
