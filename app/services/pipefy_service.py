@@ -204,13 +204,15 @@ def move_cards(card_ids: List[str], destination_phase_id: str, api_token: str) -
     mutation = """
     mutation MoveCardToPhase($input: MoveCardToPhaseInput!) {
       moveCardToPhase(input: $input) {
-        success
-        errors {
-          message
+        card {
+          id
+          title
         }
       }
     }
     """
+    
+    results = []
     
     try:
         for card_id in card_ids:
@@ -225,20 +227,37 @@ def move_cards(card_ids: List[str], destination_phase_id: str, api_token: str) -
             response = pipefy_request(mutation, variables, api_token)
             logger.info(f"Pipefy API response: {response}")
             
+            # Verificar a estrutura da resposta
             if 'errors' in response:
                 error_message = "; ".join([error['message'] for error in response['errors']])
-                return False, f"Pipefy API error: {error_message}"
+                results.append({
+                    'card_id': card_id,
+                    'success': False,
+                    'message': f"Pipefy API error: {error_message}"
+                })
+                continue
             
             if 'data' not in response or 'moveCardToPhase' not in response['data']:
-                return False, f"Unexpected response structure from Pipefy API: {response}"
+                results.append({
+                    'card_id': card_id,
+                    'success': False,
+                    'message': f"Unexpected response structure from Pipefy API: {response}"
+                })
+                continue
             
-            move_result = response['data']['moveCardToPhase']
-            if not move_result['success']:
-                errors = move_result.get('errors', [])
-                error_messages = [err['message'] for err in errors] if errors else ['Unknown error']
-                return False, f"Failed to move card {card_id}: {'; '.join(error_messages)}"
+            # Se chegou aqui, o card foi movido com sucesso
+            results.append({
+                'card_id': card_id,
+                'success': True,
+                'message': f"Card {card_id} moved successfully"
+            })
         
-        return True, "All cards moved successfully"
+        # Verificar se todos os cards falharam
+        if all(not result['success'] for result in results):
+            return False, "No cards could be moved"
+        
+        return True, results
+    
     except Exception as e:
         logger.error(f"Error moving cards: {str(e)}", exc_info=True)
         return False, f"Error moving cards: {str(e)}"

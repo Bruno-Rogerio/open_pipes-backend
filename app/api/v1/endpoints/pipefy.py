@@ -420,19 +420,20 @@ async def move_cards(
     try:
         api_token = await get_pipefy_token(current_user)
         
-        success, message = pipefy_service.move_cards(
+        success, result = pipefy_service.move_cards(
             card_ids=data.card_ids, 
             destination_phase_id=data.destination_phase_id, 
             api_token=api_token
         )
         
         if not success:
-            raise HTTPException(status_code=400, detail=message)
+            raise HTTPException(status_code=400, detail=result)
         
-        return {"message": message}
+        return {"results": result}
     except Exception as e:
         logger.error(f"Error moving cards: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error moving cards: {str(e)}")
+
 
 @router.post("/mass_move_update_cards")
 async def mass_move_update_cards(
