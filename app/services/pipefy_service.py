@@ -171,3 +171,46 @@ def get_pipe_members(pipe_id: str, api_token: str) -> List[Dict]:
     except Exception as e:
         logger.error(f"Error fetching pipe members: {str(e)}")
         raise Exception(f"Error fetching pipe members: {str(e)}")
+
+def move_cards(card_ids: List[str], destination_phase_id: str, api_token: str) -> Tuple[bool, str]:
+    mutation = """
+    mutation MoveCardToPhase($input: MoveCardToPhaseInput!) {
+      moveCardToPhase(input: $input) {
+        success
+        errors {
+          message
+        }
+      }
+    }
+    """
+    
+    try:
+        for card_id in card_ids:
+            variables = {
+                "input": {
+                    "card_id": str(card_id),
+                    "destination_phase_id": str(destination_phase_id)
+                }
+            }
+            
+            logger.info(f"Moving card {card_id} to phase {destination_phase_id}")
+            response = pipefy_request(mutation, variables, api_token)
+            logger.info(f"Pipefy API response: {response}")
+            
+            if 'errors' in response:
+                error_message = "; ".join([error['message'] for error in response['errors']])
+                return False, f"Pipefy API error: {error_message}"
+            
+            if 'data' not in response or 'moveCardToPhase' not in response['data']:
+                return False, f"Unexpected response structure from Pipefy API: {response}"
+            
+            move_result = response['data']['moveCardToPhase']
+            if not move_result['success']:
+                errors = move_result.get('errors', [])
+                error_messages = [err['message'] for err in errors] if errors else ['Unknown error']
+                return False, f"Failed to move card {card_id}: {'; '.join(error_messages)}"
+        
+        return True, "All cards moved successfully"
+    except Exception as e:
+        logger.error(f"Error moving cards: {str(e)}", exc_info=True)
+        return False, f"Error moving cards: {str(e)}"

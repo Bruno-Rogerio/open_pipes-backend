@@ -1,9 +1,10 @@
 import datetime
+import json
 import logging
 import string
 from tokenize import Comment
 from fastapi import APIRouter, Depends, HTTPException, Header, File, Request, UploadFile
-from typing import List, Dict
+from typing import Any, List, Dict
 from app.services import pipefy_service
 from app.core.security import get_current_user, decrypt_token
 from app.models.user import User
@@ -406,3 +407,90 @@ async def delete_template(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Template not found")
     return {"message": "Template deleted successfully"}
+
+class MoveCardsModel(BaseModel):
+    card_ids: List[str]
+    destination_phase_id: str
+
+@router.post("/move_cards")
+async def move_cards(
+    data: MoveCardsModel, 
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        api_token = await get_pipefy_token(current_user)
+        
+        success, message = pipefy_service.move_cards(
+            card_ids=data.card_ids, 
+            destination_phase_id=data.destination_phase_id, 
+            api_token=api_token
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        
+        return {"message": message}
+    except Exception as e:
+        logger.error(f"Error moving cards: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error moving cards: {str(e)}")
+
+@router.post("/mass_move_update_cards")
+async def mass_move_update_cards(
+    pipe_id: str,
+    cards_data: List[Dict[str, Any]],
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        api_token = await get_pipefy_token(current_user)
+        
+        # Adicionar logs detalhados
+        logger.info(f"Recebido pipe_id: {pipe_id}")
+        logger.info(f"Dados dos cards: {json.dumps(cards_data, indent=2)}")
+        
+        # Recuperar mapeamento de campos do pipe
+        field_map = pipefy_service.get_field_labels_and_ids(pipe_id, api_token)
+        logger.info(f"Mapeamento de campos: {field_map}")
+        
+        results = []
+        
+        for card_data in cards_data:
+            card_id = card_data.get('card_id')
+            fields_to_update = card_data.get('fields', [])
+            
+            if not card_id:
+                logger.warning("Card ID não fornecido")
+                continue
+            
+            field_updates = {}
+            
+            for field_update in fields_to_update:
+                field_label = field_update.get('label')
+                value = field_update.get('value')
+                
+                # Encontrar o ID do campo pelo label
+                field_id = field_map.get(field_label)
+                
+                if not field_id:
+                    logger.warning(f"Campo não encontrado: {field_label}")
+                    continue
+                
+                field_updates[field_id] = str(value)
+            
+            # Atualizar campos do card
+            success, message = pipefy_service.update_card_fields(
+                card_id=card_id, 
+                field_updates=field_updates, 
+                api_token=api_token
+            )
+            
+            results.append({
+                'card_id': card_id,
+                'success': success,
+                'message': message
+            })
+        
+        return {"results": results}
+    
+    except Exception as e:
+        logger.error(f"Erro ao atualizar cards em massa: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
