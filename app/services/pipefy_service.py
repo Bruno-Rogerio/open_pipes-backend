@@ -1,7 +1,7 @@
 import json
 from fastapi import logger
 import requests
-from typing import List, Dict, Tuple
+from typing import Any, List, Dict, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -261,3 +261,73 @@ def move_cards(card_ids: List[str], destination_phase_id: str, api_token: str) -
     except Exception as e:
         logger.error(f"Error moving cards: {str(e)}", exc_info=True)
         return False, f"Error moving cards: {str(e)}"
+
+def get_database_fields(database_id: str, api_token: str) -> List[Dict]:
+    query = """
+    query ($databaseId: ID!) {
+      table(id: $databaseId) {
+        table_fields {
+          id
+          label
+          type
+        }
+      }
+    }
+    """
+    variables = {"databaseId": database_id}
+    
+    try:
+        data = pipefy_request(query, variables, api_token)
+        return data["data"]["table"]["table_fields"]
+    except Exception as e:
+        raise Exception(f"Error fetching database fields: {str(e)}")
+
+def create_database_records(database_id: str, records: List[Dict[str, Any]], api_token: str) -> List[Dict]:
+    mutation = """
+    mutation CreateTableRecord($input: CreateTableRecordInput!) {
+      createTableRecord(input: $input) {
+        table_record {
+          id
+          title
+        }
+      }
+    }
+    """
+    
+    results = []
+    
+    try:
+        for record in records:
+            variables = {
+                "input": {
+                    "table_id": database_id,
+                    "fields_attributes": [
+                        {"field_id": field_id, "field_value": value}
+                        for field_id, value in record.items()
+                    ]
+                }
+            }
+            
+            response = pipefy_request(mutation, variables, api_token)
+            
+            if 'errors' in response:
+                results.append({
+                    'success': False,
+                    'message': "; ".join([error['message'] for error in response['errors']])
+                })
+            elif 'data' in response and 'createTableRecord' in response['data']:
+                results.append({
+                    'success': True,
+                    'id': response['data']['createTableRecord']['table_record']['id'],
+                    'title': response['data']['createTableRecord']['table_record']['title']
+                })
+            else:
+                results.append({
+                    'success': False,
+                    'message': "Unexpected response structure from Pipefy API"
+                })
+        
+        return results
+    except Exception as e:
+        logger.error(f"Error creating database records: {str(e)}", exc_info=True)
+        raise Exception(f"Error creating database records: {str(e)}")

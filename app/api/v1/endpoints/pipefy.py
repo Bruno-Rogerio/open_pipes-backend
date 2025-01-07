@@ -509,3 +509,28 @@ async def mass_move_update_cards(
     except Exception as e:
         logger.error(f"Erro ao atualizar cards em massa: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/get_database_fields")
+async def get_database_fields(database_id: str = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        api_token = await get_pipefy_token(current_user)
+        fields = pipefy_service.get_database_fields(database_id, api_token)
+        return {"table_fields": fields}
+    except Exception as e:
+        logger.error(f"Error fetching database fields: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
+    
+@router.post("/create_database_records")
+async def create_database_records(
+    database_id: str = Body(...),
+    records: List[Dict[str, Any]] = Body(...),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        api_token = await get_pipefy_token(current_user)
+        results = pipefy_service.create_database_records(database_id, records, api_token)
+        return {"results": results}
+    except Exception as e:
+        logger.error(f"Error creating database records: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
