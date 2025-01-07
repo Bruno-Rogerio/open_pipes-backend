@@ -378,10 +378,12 @@ async def save_template(
         "phase_id": template_data["phase_id"],
         "fields": template_data["fields"],
         "user_id": str(current_user.id),
-        "selected_user": template_data.get("selected_user", "")  # Adiciona o ID do usuário selecionado
+        "selected_user": template_data.get("selected_user", ""),
+        "need_field_update": len(template_data["fields"]) > 0
     }
     result = await MongoDB.database.templates.insert_one(template)
     return {"id": str(result.inserted_id), "message": "Template saved successfully"}
+
 
 @router.get("/templates")
 async def get_templates(current_user: User = Depends(get_current_user)):
