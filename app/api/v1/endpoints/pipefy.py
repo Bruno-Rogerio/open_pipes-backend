@@ -524,7 +524,8 @@ async def get_database_fields(
         api_token = await get_pipefy_token(current_user)
         logger.info(f"Fetching fields for database ID: {request.database_id}")
         fields = pipefy_service.get_database_fields(request.database_id, api_token)
-        logger.info(f"Retrieved fields: {fields}")
+        logger.info(f"Retrieved {len(fields)} fields")
+        logger.debug(f"Fields: {fields}")  # Adicione este log para ver todos os campos retornados
         return {"table_fields": fields}
     except Exception as e:
         logger.error(f"Error fetching database fields: {str(e)}", exc_info=True)

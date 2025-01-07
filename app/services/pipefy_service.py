@@ -266,10 +266,14 @@ def get_database_fields(database_id: str, api_token: str) -> List[Dict]:
     query = """
     query ($databaseId: ID!) {
       table(id: $databaseId) {
+        name
         table_fields {
           id
           label
+          type
           required
+          options
+          description
         }
       }
     }
