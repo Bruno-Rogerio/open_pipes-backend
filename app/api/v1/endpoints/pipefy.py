@@ -45,6 +45,9 @@ class PipeInDB(BaseModel):
     pipeId: str
     user_id: str
 
+class DatabaseFieldsRequest(BaseModel):
+    database_id: str
+
 async def get_pipefy_token(current_user: User = Depends(get_current_user)):
     logger.info(f"Retrieving Pipefy token for user: {current_user.email}")
     user = await MongoDB.database.users.find_one({"email": current_user.email})
@@ -512,15 +515,21 @@ async def mass_move_update_cards(
 
 
 @router.post("/get_database_fields")
-async def get_database_fields(database_id: str = Body(...), current_user: User = Depends(get_current_user)):
+async def get_database_fields(
+    request: DatabaseFieldsRequest,
+    current_user: User = Depends(get_current_user)
+):
+    logger.info(f"Received request for database fields: {request.dict()}")
     try:
         api_token = await get_pipefy_token(current_user)
-        fields = pipefy_service.get_database_fields(database_id, api_token)
+        logger.info(f"Fetching fields for database ID: {request.database_id}")
+        fields = pipefy_service.get_database_fields(request.database_id, api_token)
+        logger.info(f"Retrieved fields: {fields}")
         return {"table_fields": fields}
     except Exception as e:
         logger.error(f"Error fetching database fields: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
-    
+
 @router.post("/create_database_records")
 async def create_database_records(
     database_id: str = Body(...),

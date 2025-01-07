@@ -269,7 +269,7 @@ def get_database_fields(database_id: str, api_token: str) -> List[Dict]:
         table_fields {
           id
           label
-          type
+          required
         }
       }
     }
@@ -278,8 +278,13 @@ def get_database_fields(database_id: str, api_token: str) -> List[Dict]:
     
     try:
         data = pipefy_request(query, variables, api_token)
+        if 'errors' in data:
+            raise Exception(data['errors'][0]['message'])
+        if 'data' not in data or 'table' not in data['data'] or 'table_fields' not in data['data']['table']:
+            raise Exception("Unexpected response structure from Pipefy API")
         return data["data"]["table"]["table_fields"]
     except Exception as e:
+        logger.error(f"Error fetching database fields: {str(e)}", exc_info=True)
         raise Exception(f"Error fetching database fields: {str(e)}")
 
 def create_database_records(database_id: str, records: List[Dict[str, Any]], api_token: str) -> List[Dict]:
